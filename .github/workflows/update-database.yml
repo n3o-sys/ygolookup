@@ -7,7 +7,7 @@ name: Update card database
 # whether anything actually changed, and only then rebuilds and publishes.
 on:
   schedule:
-    - cron: "30 5 * * *"      # 05:30 UTC daily. Cron here is best effort, not exact.
+    - cron: "0 11 * * *"      # 11:00 UTC daily. Cron here is best effort, not exact.
   workflow_dispatch:           # also lets you run it by hand from the Actions tab
 
 permissions:
