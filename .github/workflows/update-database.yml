@@ -1,0 +1,100 @@
+name: Update card database
+
+# Action majors below are the first that run on Node 24. GitHub removed Node 20
+# from the runners on 16 September 2026, so older majors fail.
+
+# YGOPRODeck changes the database most days. This runs once a day, checks
+# whether anything actually changed, and only then rebuilds and publishes.
+on:
+  schedule:
+    - cron: "30 5 * * *"      # 05:30 UTC daily. Cron here is best effort, not exact.
+  workflow_dispatch:           # also lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write              # to create a Release
+  pages: write                 # to publish the site
+  id-token: write              # required by the Pages deploy action
+
+concurrency:
+  group: ygolookup-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Read the app version
+        id: app
+        run: echo "ver=$(tr -d '[:space:]' < APP_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Ask YGOPRODeck for the database version
+        id: db
+        run: echo "ver=$(python3 update.py --print-db-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Has this database version been published already?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="db-${{ steps.db.outputs.ver }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists. Nothing to do."
+            echo "build=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "New database version ${{ steps.db.outputs.ver }}."
+            echo "build=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.check.outputs.build == 'yes'
+        run: python3 update.py --version "${{ steps.app.outputs.ver }}"
+
+      # The site folder is built fresh each run and never committed. The page is
+      # ~1.6 MB of compressed data, which git cannot pack down, so committing it
+      # daily would add roughly 0.6 GB of history a year.
+      - name: Assemble the site folder
+        if: steps.check.outputs.build == 'yes'
+        run: |
+          mkdir -p site
+          f="ygolookup-v${{ steps.app.outputs.ver }}.html"
+          cp "$f" site/index.html
+          cp "$f" "site/$f"
+          cp README.md site/
+          ls -lh site
+
+      - name: Upload the site
+        if: steps.check.outputs.build == 'yes'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Publish the release
+        if: steps.check.outputs.build == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f="ygolookup-v${{ steps.app.outputs.ver }}.html"
+          gh release create "db-${{ steps.db.outputs.ver }}" "$f" \
+            --title "Card data ${{ steps.db.outputs.ver }} ($(date -u '+%d %b %Y'))" \
+            --notes "Built from YGOPRODeck database ${{ steps.db.outputs.ver }}.
+          App version ${{ steps.app.outputs.ver }}. Download the file and open it in a browser."
+
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.build == 'yes'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - id: pages
+        uses: actions/deploy-pages@v5
