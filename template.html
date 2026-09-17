@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YGOlookup</title>
+<style>
+:root{
+  --cream:#FBF5E4; --cream-2:#F2E9D1;
+  --gold:#C9A227; --ban:#C0202B; --pts:#1D5FBF;
+  --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:#000; color:#e8e8e8; font-family:var(--sans);
+  -webkit-text-size-adjust:100%; overflow-x:hidden;
+}
+#app{
+  min-height:100%; display:flex; flex-direction:column; align-items:center;
+  padding:0 16px 64px; transition:padding-top .35s ease;
+}
+#app.idle{justify-content:center; padding-top:0}
+#app.active{padding-top:28px}
+
+/* ---------- search ---------- */
+.searchwrap{width:100%; max-width:520px; position:relative; flex:none}
+#q{
+  width:100%; background:#101010; border:1px solid #2e2e2e; border-radius:10px;
+  color:#f2f2f2; font-size:17px; font-family:var(--sans);
+  letter-spacing:.055em; line-height:1.6;
+  padding:17px 44px 17px 17px; outline:none;
+}
+#q::placeholder{color:#5e5e5e}
+#q:focus{border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,162,39,.18)}
+.clear{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  width:30px; height:30px; border:0; border-radius:50%; background:transparent;
+  color:#6a6a6a; font-size:19px; cursor:pointer; display:none; line-height:1;
+}
+.clear:hover{color:#ddd}
+.clear:focus-visible{outline:2px solid var(--gold)}
+
+#list{
+  position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:40;
+  background:#0d0d0d; border:1px solid #2e2e2e; border-radius:10px;
+  max-height:min(52vh,380px); overflow-y:auto; display:none;
+  box-shadow:0 18px 40px rgba(0,0,0,.75);
+}
+#list.on{display:block}
+.opt{
+  padding:11px 14px; cursor:pointer; display:flex; gap:10px; align-items:baseline;
+  border-bottom:1px solid #1c1c1c;
+}
+.opt:last-child{border-bottom:0}
+.opt.sel,.opt:hover{background:#1b1b1b}
+.opt .nm{flex:1; font-size:15px; color:#ececec}
+.opt .nm b{color:var(--gold); font-weight:600}
+.opt .kd{font-size:11px; color:#6d6d6d; white-space:nowrap; letter-spacing:.04em}
+.note{padding:14px; color:#6d6d6d; font-size:14px; text-align:center}
+.more{padding:10px 14px; border-top:1px solid #232323; color:#7a7a7a;
+  font-size:11.5px; letter-spacing:.06em; text-align:center; background:#0a0a0a}
+
+/* full results list */
+#results{width:100%; max-width:620px; margin-top:26px}
+#results:empty{display:none}
+.rescount{
+  font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:#5f5f5f;
+  padding:0 4px 10px; border-bottom:1px solid #202020; margin-bottom:4px;
+}
+.res{
+  padding:13px 6px; cursor:pointer; display:flex; gap:12px; align-items:baseline;
+  border-bottom:1px solid #171717;
+}
+.res:hover{background:#141414}
+.res .nm{flex:1; font-size:15px; color:#ececec}
+.res .nm b{color:var(--gold); font-weight:600}
+.res .kd{font-size:11px; color:#6d6d6d; white-space:nowrap; letter-spacing:.04em}
+
+
+/* ---------- card ---------- */
+#stage{margin-top:34px; width:100%; display:flex; flex-direction:column; align-items:center}
+.cardbox{position:relative; width:100%; max-width:452px; padding:26px 26px 0}
+.card{
+  position:relative; border-radius:7px; padding:13px 13px 12px;
+  font-family:var(--serif);
+  border:1px solid rgba(0,0,0,.55);
+  box-shadow:0 22px 50px rgba(0,0,0,.8), 0 2px 5px rgba(0,0,0,.5);
+  animation:rise .32s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .card{animation:none} #app{transition:none}
+}
+.card::after{
+  content:""; position:absolute; inset:0; border-radius:7px; pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28),
+             inset 0 0 0 1px rgba(255,255,255,.07);
+}
+
+/* name row */
+.namerow{display:flex; align-items:center; gap:11px; padding:1px 1px 9px}
+.cname{
+  flex:1; font-size:20.5px; line-height:1.16; font-weight:600; letter-spacing:.012em;
+  color:#1B1509; text-shadow:0 1px 0 rgba(255,255,255,.16);
+}
+.card.dk .cname{color:#F4EFE4; text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.attr{
+  width:48px; height:48px; flex:none; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--sans); font-size:9.5px; font-weight:700; letter-spacing:.045em;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.45);
+  border:0;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3),
+             0 0 0 2px rgba(0,0,0,.42),
+             0 2px 5px rgba(0,0,0,.4);
+}
+
+/* level / rank */
+.lvrow{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:0 3px 9px; min-height:17px;
+}
+.pips{display:flex; align-items:center}
+.pip{width:15px; height:15px; margin-left:2.5px}
+.pips .pip:first-child{margin-left:0}
+.lvlab{
+  font-family:var(--sans); font-size:10px; font-weight:600; letter-spacing:.17em;
+  text-transform:uppercase; color:#3B2E16; white-space:nowrap;
+}
+.card.dk .lvlab{color:#D9D2C3}
+
+/* text panel */
+.panel{
+  background:var(--cream); border:1px solid rgba(0,0,0,.5); border-radius:2px;
+  padding:9px 11px 8px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.55), 0 1px 2px rgba(0,0,0,.28);
+}
+.tline{
+  font-size:12.5px; font-weight:600; color:#1E1710; letter-spacing:.03em;
+  padding-bottom:6px; margin-bottom:7px; border-bottom:1px solid rgba(0,0,0,.2);
+}
+.desc{
+  font-size:13.5px; line-height:1.44; color:#1A150E; white-space:pre-wrap;
+  font-family:var(--serif); letter-spacing:.004em;
+  font-variant-numeric:lining-nums;
+}
+.desc.flavor{font-style:italic}
+.statline{
+  display:flex; justify-content:flex-end; gap:22px; margin-top:10px; padding-top:7px;
+  border-top:1px solid rgba(0,0,0,.2); font-size:13.5px; font-weight:600; color:#1A150E;
+  letter-spacing:.05em; font-variant-numeric:lining-nums tabular-nums;
+}
+.linkval{font-size:13.5px; font-weight:600; color:#1A150E; letter-spacing:.05em}
+
+/* pendulum */
+.card.pend::before{content:""; position:absolute; left:0; right:0; bottom:0; height:62%;
+  border-radius:0 0 9px 9px; pointer-events:none;
+  background:linear-gradient(180deg,rgba(58,150,120,0) 0%,rgba(48,150,116,.42) 45%,rgba(40,140,108,.62) 100%);}
+.pendwrap{position:relative; margin-bottom:7px; z-index:2}
+.card > .namerow,.card > .lvrow,.card > .panel{position:relative; z-index:2}
+.pendbox{
+  background:var(--cream-2); border:1px solid rgba(0,0,0,.5); border-radius:2px;
+  padding:8px 36px; font-size:12.5px; line-height:1.4; color:#1A150E; white-space:pre-wrap;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
+}
+.pendhd{
+  font-size:9px; letter-spacing:.19em; text-transform:uppercase; color:#6B5E3E;
+  font-family:var(--sans); font-weight:600; margin-bottom:5px;
+}
+.scale{
+  position:absolute; top:0; bottom:0; width:31px; display:flex; align-items:center;
+  justify-content:center; font-size:18px; font-weight:600; color:#fff;
+  font-variant-numeric:lining-nums; text-shadow:0 1px 2px rgba(0,0,0,.55);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);
+}
+.scale.l{left:0; background:linear-gradient(180deg,#4B7CC4,#2C5497); border-radius:2px 0 0 2px}
+.scale.r{right:0; background:linear-gradient(180deg,#C9564A,#9C2E27); border-radius:0 2px 2px 0}
+
+/* link arrows */
+.arrows{position:absolute; inset:4px; pointer-events:none; z-index:3}
+.arw{position:absolute; width:0; height:0; opacity:.3}
+.arw.on{opacity:1; filter:drop-shadow(0 0 5px rgba(255,214,102,.85))}
+.arw i{display:block; width:0; height:0}
+
+/* corner badges */
+.badge{
+  position:absolute; width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--sans); font-weight:700; color:#fff; z-index:5; line-height:1;
+  box-shadow:0 3px 12px rgba(0,0,0,.75), 0 0 0 2px rgba(0,0,0,.6);
+}
+.badge.pts{left:26px; top:26px; transform:translate(-64%,-64%);
+  background:var(--pts); font-size:17px; letter-spacing:-.02em}
+.badge.ban{right:26px; top:26px; transform:translate(64%,-64%); background:var(--ban)}
+.badge.ban .n{font-size:23px}
+
+/* meta strip under the card */
+.meta{
+  max-width:404px; width:100%; margin:26px auto 0; display:flex; flex-wrap:wrap;
+  gap:8px 26px; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:#616161; justify-content:center;
+}
+.meta b{color:#b9b9b9; font-weight:600}
+
+.links{
+  max-width:452px; width:100%; margin:16px auto 0; display:flex; flex-wrap:wrap;
+  gap:8px; justify-content:center;
+}
+.lnk{
+  border:1px solid #2b2b2b; border-radius:20px; padding:8px 15px; background:#0d0d0d;
+  font-family:var(--sans); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:#8d8d8d; text-decoration:none;
+}
+.lnk:hover{border-color:var(--gold); color:var(--gold)}
+.lnk:focus-visible{outline:2px solid var(--gold)}
+
+#boot{color:#585858; font-size:14px; margin-top:26px; text-align:center}
+#foot{position:fixed; bottom:10px; left:0; right:0; text-align:center;
+  font-size:10px; letter-spacing:.12em; color:#333; text-transform:uppercase;
+  pointer-events:none; transition:opacity .25s ease}
+#foot.hide{opacity:0}
+@media (max-width:420px){
+  .cardbox{padding:22px 22px 0}
+  .attr{width:44px; height:44px; font-size:8.8px}
+  .badge{width:38px; height:38px}
+  .badge.pts{left:22px; top:22px; font-size:14px}
+  .badge.ban{right:22px; top:22px}
+  .cname{font-size:18px}
+  .badge.ban .n{font-size:20px}
+}
+
+/* ---------- advanced filters ---------- */
+.advbtn{
+  margin-top:12px; background:#101010; border:1px solid #2e2e2e; border-radius:8px;
+  color:#8d8d8d; font-family:var(--sans); font-size:12px; letter-spacing:.13em;
+  text-transform:uppercase; padding:9px 17px; cursor:pointer;
+}
+.advbtn:hover{border-color:#4a4a4a; color:#d6d6d6}
+.advbtn.on{border-color:var(--gold); color:var(--gold)}
+.advbtn:focus-visible{outline:2px solid var(--gold)}
+.adv{
+  width:100%; max-width:620px; margin-top:16px; border:1px solid #232323;
+  border-radius:12px; background:#0b0b0b; padding:4px 16px 16px;
+}
+.advhint{padding:13px 2px 2px; font-size:11px; color:#5f5f5f; line-height:1.6; letter-spacing:.04em}
+.advhint b{color:var(--gold); font-weight:600}
+.advhint i{color:#C9666A; font-style:normal; font-weight:600}
+.adv[hidden]{display:none}
+.sec{padding:15px 0; border-bottom:1px solid #1a1a1a}
+.sec:last-of-type{border-bottom:0}
+.sech{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;
+  font-size:11px; letter-spacing:.15em; text-transform:uppercase; color:#6f6f6f;
+}
+.mode{
+  background:#141414; border:1px solid #333; color:#8f8f8f; border-radius:20px;
+  font-size:9.5px; letter-spacing:.13em; padding:4px 11px; cursor:pointer;
+  font-family:var(--sans); min-width:52px;
+}
+.mode.and{border-color:var(--gold); color:var(--gold)}
+.mode:focus-visible{outline:2px solid var(--gold)}
+.chips{display:flex; flex-wrap:wrap; gap:7px}
+.chips.narrow .chip{min-width:44px; text-align:center}
+.chip{
+  background:#151515; border:1px solid #2c2c2c; color:#b4b4b4; border-radius:7px;
+  font-family:var(--sans); font-size:12.5px; padding:8px 12px; cursor:pointer;
+}
+.chip:hover{border-color:#4d4d4d; color:#e6e6e6}
+.chip.on{background:#2a2208; border-color:var(--gold); color:#F0D585}
+.chip.ex{background:#2C0E0E; border-color:var(--ban); color:#F0A3A3;
+  text-decoration:line-through; text-decoration-thickness:1px}
+.chip:focus-visible{outline:2px solid var(--gold)}
+.arrgrid{display:grid; grid-template-columns:repeat(3,52px); gap:7px}
+.arrcell{width:52px; height:44px; display:block}
+.arrbtn{
+  background:#151515; border:1px solid #2c2c2c; border-radius:7px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+.arrbtn svg{width:22px; height:22px; fill:#8a8a8a}
+.arrbtn:hover{border-color:#4d4d4d}
+.arrbtn.on{background:#2a2208; border-color:var(--gold)}
+.arrbtn.on svg{fill:var(--gold)}
+.arrbtn.ex{background:#2C0E0E; border-color:var(--ban)}
+.arrbtn.ex svg{fill:#E06A6A}
+.arrbtn:focus-visible{outline:2px solid var(--gold)}
+.rangerow{display:flex; align-items:center; gap:11px; max-width:330px}
+.rin{
+  flex:1; min-width:0; background:#151515; border:1px solid #2c2c2c; border-radius:7px;
+  color:#e6e6e6; font-family:var(--sans); font-size:14px; padding:10px 11px; outline:none;
+}
+.rin:focus{border-color:var(--gold)}
+.tilde{color:#5a5a5a; font-size:14px}
+.chk{display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer;
+  font-size:12.5px; color:#9a9a9a}
+.chk input{width:16px; height:16px; accent-color:var(--gold)}
+.advfoot{padding-top:15px; display:flex; align-items:center; justify-content:space-between; gap:12px}
+.fcount{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--gold)}
+.reset{
+  background:transparent; border:1px solid #2e2e2e; color:#8a8a8a; border-radius:7px;
+  font-family:var(--sans); font-size:12px; letter-spacing:.08em; padding:9px 17px; cursor:pointer;
+}
+.reset:hover{border-color:#a33; color:#e0a0a0}
+.reset:focus-visible{outline:2px solid var(--gold)}
+@media (max-width:420px){
+  .adv{padding:4px 12px 14px}
+  .arrgrid{grid-template-columns:repeat(3,46px)}
+  .arrcell{width:46px; height:40px}
+}
+</style>
+</head>
+<body>
+<div id="app" class="idle">
+  <div class="searchwrap">
+    <input id="q" type="text" placeholder="Search a card&hellip;" autocomplete="off"
+           autocorrect="off" autocapitalize="off" spellcheck="false"
+           aria-label="Search a card" aria-autocomplete="list" aria-controls="list">
+    <button class="clear" id="clr" aria-label="Clear the search">&times;</button>
+    <div id="list" role="listbox"></div>
+  </div>
+  <button id="advbtn" class="advbtn" type="button" aria-expanded="false" aria-controls="adv">Filters</button>
+  <div id="adv" class="adv" hidden></div>
+  <div id="boot">Loading the card data&hellip;</div>
+  <div id="results" role="listbox" aria-label="Search results"></div>
+  <div id="stage"></div>
+</div>
+<div id="foot"></div>
+
+<script id="payload" type="application/octet-stream">__PAYLOAD__</script>
+<script>
+"use strict";
+var META = __META__;
+var CARDS = [];
+var NM = [];   /* name, no spaces or marks:  "harpiesfeatherduster" */
+var NS = [];   /* name, spaced and padded:   " harpie s feather duster " */
+var TB = [];   /* type blob: typeline, attribute, spell or trap kind, list status */
+var DB = [];   /* text blob: card text and pendulum text */
+var ready = false;
+var D = {};    /* cached elements */
+
+/* ---------- helpers ---------- */
+function norm(s){                       /* tight: "Harpie's" and "harpies" agree */
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+          .replace(/[^a-z0-9]+/g,"");
+}
+function normSp(s){                     /* spaced: keeps word gaps for ranking */
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+          .replace(/[^a-z0-9]+/g," ").trim();
+}
+function cheapSp(s){                    /* blobs only: skips the costly NFD pass */
+  return s.toLowerCase().replace(/[^a-z0-9]+/g," ");
+}
+function esc(s){
+  return String(s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+  });
+}
+function el(id){ return document.getElementById(id); }
+function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+var FRAMEWORD = {
+  effect:"effect", normal:"normal", ritual:"ritual", fusion:"fusion",
+  synchro:"synchro", xyz:"xyz rank", link:"link", spell:"spell", trap:"trap"
+};
+
+/* ---------- load ---------- */
+function b64ToBytes(b64){
+  var bin = atob(b64), n = bin.length, out = new Uint8Array(n);
+  for (var i=0;i<n;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function indexAll(){
+  for (var i=0;i<CARDS.length;i++){
+    var c = CARDS[i];
+    NM[i] = norm(c.n);
+    NS[i] = " " + normSp(c.n) + " ";
+    var t = c.tl ? c.tl.join(" ") : "";
+    if (c.a) t += " " + c.a;
+    if (c.r) t += " " + c.r;
+    t += " " + (FRAMEWORD[c.f.replace("_pendulum","")] || "");
+    if (c.f.indexOf("pendulum") > -1) t += " pendulum";
+    if (c.b) t += " " + c.b;
+    if (c.g) t += " genesys";
+    TB[i] = " " + cheapSp(t) + " ";
+    DB[i] = (c.d + " " + (c.pd||"") + " " + (c.md||"")).toLowerCase();
+  }
+}
+function load(){
+  var bytes = b64ToBytes(el("payload").textContent.trim());
+  if (typeof DecompressionStream === "undefined"){
+    D.boot.textContent = "This browser cannot unpack the data. Use a 2023 or newer browser.";
+    return;
+  }
+  var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  new Response(stream).text().then(function(txt){
+    CARDS = JSON.parse(txt);
+    indexAll();
+    ready = true;
+    D.boot.style.display = "none";
+    D.foot.textContent = CARDS.length.toLocaleString() + " cards \u00b7 data "
+                       + META.updated + " \u00b7 DB " + META.db
+                       + " \u00b7 v" + META.ver;
+    D.q.focus();
+    if (D.q.value) run();
+  }).catch(function(e){
+    D.boot.textContent = "The card data did not unpack. " + e;
+  });
+}
+
+/* ---------- search ----------
+   Tier 0  the whole name          4  the name contains the query with no gaps
+        1  the name starts with    5  the type line, attribute or list status
+        2  every word starts a word in the name
+        3  every word is in the name    6  the card text                     */
+function allIn(toks, hay, atWordStart){
+  for (var j=0;j<toks.length;j++){
+    if (hay.indexOf(atWordStart ? " "+toks[j] : toks[j]) < 0) return false;
+  }
+  return true;
+}
+function search(raw){
+  var qt = norm(raw), qs = normSp(raw);
+  if (!qt) return [];
+  var toks = qs.split(" ").filter(Boolean);
+  var out = [];
+  for (var i=0;i<CARDS.length;i++){
+    var nm = NM[i], tier;
+    if (nm === qt) tier = 0;
+    else if (nm.indexOf(qt) === 0) tier = 1;
+    else if (allIn(toks, NS[i], true)) tier = 2;
+    else if (allIn(toks, NS[i], false)) tier = 3;
+    else if (nm.indexOf(qt) > -1) tier = 4;
+    else if (allIn(toks, TB[i], false)) tier = 5;
+    else if (allIn(toks, DB[i], false)) tier = 6;
+    else continue;
+    out.push([tier, i]);
+  }
+  out.sort(function(a,b){
+    return a[0]-b[0] || (CARDS[a[1]].n < CARDS[b[1]].n ? -1 : 1);  /* tier, then A-Z */
+  });
+  return out.map(function(r){ return r[1]; });
+}
+function kindOf(c){
+  if (c.f === "spell") return (c.r||"") + " Spell";
+  if (c.f === "trap")  return (c.r||"") + " Trap";
+  return [c.a, c.tl && c.tl[0]].filter(Boolean).join(" ");   /* e.g. FIRE Zombie */
+}
+
+/* highlight every query word inside the card name */
+function mark(name, toks){
+  if (!toks.length) return esc(name);
+  var sp = "", map = [];
+  for (var i=0;i<name.length;i++){
+    var ch = name[i].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if (/^[a-z0-9]$/.test(ch)){ sp += ch; map.push(i); }
+    else if (sp.charAt(sp.length-1) !== " "){ sp += " "; map.push(-1); }
+  }
+  var hit = [];
+  for (var t=0;t<toks.length;t++){
+    var q = toks[t], at = sp.indexOf(q);
+    while (at > -1 && q){
+      var a = map[at], b = map[at+q.length-1];
+      if (a > -1 && b > -1) hit.push([a, b+1]);
+      at = sp.indexOf(q, at+1);
+    }
+  }
+  if (!hit.length) return esc(name);
+  hit.sort(function(x,y){ return x[0]-y[0]; });
+  var out = "", pos = 0;
+  for (var k=0;k<hit.length;k++){
+    if (hit[k][0] < pos) continue;
+    out += esc(name.slice(pos, hit[k][0])) + "<b>" + esc(name.slice(hit[k][0], hit[k][1])) + "</b>";
+    pos = hit[k][1];
+  }
+  return out + esc(name.slice(pos));
+}
+
+/* ---------- advanced filters ---------- */
+var RACES = ["Spellcaster","Dragon","Zombie","Warrior","Beast-Warrior","Beast",
+  "Winged Beast","Fiend","Fairy","Insect","Dinosaur","Reptile","Fish","Sea Serpent",
+  "Aqua","Pyro","Thunder","Rock","Plant","Machine","Psychic","Divine-Beast","Wyrm",
+  "Cyberse","Illusion"];
+var CARDTYPES = ["Normal","Effect","Ritual","Fusion","Synchro","Xyz","Toon","Spirit",
+  "Union","Gemini","Tuner","Flip","Pendulum","Link"];
+var ARROWSET = ["Top-Left","Top","Top-Right","Left",null,"Right",
+  "Bottom-Left","Bottom","Bottom-Right"];
+var ARROWDEG = {"Top":0,"Top-Right":45,"Right":90,"Bottom-Right":135,
+  "Bottom":180,"Bottom-Left":225,"Left":270,"Top-Left":315};
+/* the triangle is built at the angle asked for, so nothing depends on a CSS rotation */
+function triPath(deg){
+  var pts = [0,152,208].map(function(a){
+    var t = (deg + a - 90) * Math.PI / 180;
+    return (12 + 9*Math.cos(t)).toFixed(2) + "," + (12 + 9*Math.sin(t)).toFixed(2);
+  });
+  return "M" + pts.join("L") + "Z";
+}
+
+function nums(a,b){ var o=[]; for(var i=a;i<=b;i++) o.push(String(i)); return o; }
+
+var SPEC = [
+  {id:"ct",  title:"Card Type",      opts:CARDTYPES, mode:true},
+  {id:"at",  title:"Attribute",      opts:["DARK","LIGHT","EARTH","WATER","FIRE","WIND","DIVINE"]},
+  {id:"ty",  title:"Monster Type",   opts:RACES},
+  {id:"lv",  title:"Level / Rank",   opts:nums(0,13), narrow:true},
+  {id:"sc",  title:"Pendulum Scale", opts:nums(0,13), narrow:true},
+  {id:"lk",  title:"Link Rating",    opts:nums(1,6),  narrow:true},
+  {id:"ar",  title:"Link Arrows",    arrows:true, mode:true},
+  {id:"sp",  title:"Spell",          opts:["Normal","Continuous","Quick-Play","Equip","Field","Ritual"]},
+  {id:"tr",  title:"Trap",           opts:["Normal","Continuous","Counter"]},
+  {id:"atk", title:"ATK",            range:true, unknown:"Include ? ATK"},
+  {id:"def", title:"DEF",            range:true, unknown:"Include ? DEF"},
+  {id:"bl",  title:"TCG Banlist",    opts:["Forbidden","Limited","Semi-Limited","Unlimited"]},
+  {id:"gp",  title:"Genesys Points", range:true}
+];
+
+var F = {};
+SPEC.forEach(function(s){
+  F[s.id] = s.range ? {min:"", max:"", unk:false} : {sel:{}, n:0, and:false};
+});
+
+function anyFilter(){
+  for (var k in F){
+    var f = F[k];
+    if (f.n) return true;
+    if (f.min !== undefined && (f.min !== "" || f.max !== "" || f.unk)) return true;
+  }
+  return false;
+}
+function countFilters(){
+  var n = 0;
+  for (var k in F){
+    var f = F[k];
+    if (f.n) n += f.n;
+    else if (f.min !== undefined && (f.min !== "" || f.max !== "" || f.unk)) n += 1;
+  }
+  return n;
+}
+
+function inRange(v, f){
+  if (v === undefined) return false;
+  if (v === -1) return !!f.unk;                 /* "?" ATK or DEF */
+  if (f.min !== "" && v < +f.min) return false;
+  if (f.max !== "" && v > +f.max) return false;
+  return true;
+}
+function rangeOff(f){ return f.min === "" && f.max === "" && !f.unk; }
+
+/* every chip section answers the same question: which values does this card have? */
+function valuesFor(id, c){
+  switch (id){
+    case "ct": return c.tl || [];
+    case "at": return c.a ? [c.a] : [];
+    case "ty": return c.tl ? [c.tl[0]] : [];
+    case "lv": return c.l  !== undefined ? [String(c.l)]  : [];
+    case "sc": return c.sc !== undefined ? [String(c.sc)] : [];
+    case "lk": return c.lv !== undefined ? [String(c.lv)] : [];
+    case "ar": return c.lm || [];
+    case "sp": return c.f === "spell" && c.r ? [c.r] : [];
+    case "tr": return c.f === "trap"  && c.r ? [c.r] : [];
+    case "bl": return [c.b || "Unlimited"];
+  }
+  return [];
+}
+/* +1 keeps a card, -1 rules it out */
+function sectionOk(id, c){
+  var f = F[id];
+  if (!f.n) return true;
+  var have = valuesFor(id, c), inc = [], exc = [], k;
+  for (k in f.sel){ if (f.sel[k] > 0) inc.push(k); else exc.push(k); }
+  for (k = 0; k < exc.length; k++){
+    if (have.indexOf(exc[k]) > -1) return false;
+  }
+  if (!inc.length) return true;
+  var n = 0;
+  for (k = 0; k < inc.length; k++) if (have.indexOf(inc[k]) > -1) n++;
+  return f.and ? n === inc.length : n > 0;
+}
+
+function passes(c){
+  var ids = ["ct","at","ty","lv","sc","lk","ar","sp","tr","bl"];
+  for (var i = 0; i < ids.length; i++){
+    if (!sectionOk(ids[i], c)) return false;
+  }
+  var f;
+  f = F.atk; if (!rangeOff(f) && !inRange(c.k, f)) return false;
+  f = F.def; if (!rangeOff(f) && !inRange(c.e, f)) return false;
+  f = F.gp;  if (!rangeOff(f) && !inRange(c.g || 0, f)) return false;
+  return true;
+}
+
+/* ---------- panel ---------- */
+function arrowBtn(dir){
+  if (!dir) return '<span class="arrcell"></span>';
+  return '<button class="arrcell arrbtn" type="button" data-f="ar" data-v="'+dir+'"'
+    + ' aria-pressed="false" aria-label="'+dir+'">'
+    + '<svg viewBox="0 0 24 24"><path d="'+triPath(ARROWDEG[dir])+'"/></svg></button>';
+}
+function buildPanel(){
+  var hint = '<div class="advhint">Tap once to keep <b>only</b> that value. '
+    + 'Tap again to <i>exclude</i> it. Tap a third time to clear.</div>';
+  var h = SPEC.map(function(s){
+    var head = '<div class="sech"><span>'+s.title+'</span>'
+      + (s.mode ? '<button class="mode" type="button" data-mode="'+s.id+'"'
+                  + ' aria-label="Match any or all">ANY</button>' : "")
+      + '</div>';
+    var body;
+    if (s.range){
+      body = '<div class="rangerow">'
+        + '<input class="rin" type="number" inputmode="numeric" placeholder="min"'
+        + ' data-r="'+s.id+'" data-k="min" aria-label="'+s.title+' minimum">'
+        + '<span class="tilde">\u2013</span>'
+        + '<input class="rin" type="number" inputmode="numeric" placeholder="max"'
+        + ' data-r="'+s.id+'" data-k="max" aria-label="'+s.title+' maximum">'
+        + '</div>'
+        + (s.unknown ? '<label class="chk"><input type="checkbox" data-u="'+s.id+'">'
+                       + '<span>'+s.unknown+'</span></label>' : "");
+    } else if (s.arrows){
+      body = '<div class="arrgrid">' + ARROWSET.map(arrowBtn).join("") + '</div>';
+    } else {
+      body = '<div class="chips'+(s.narrow?" narrow":"")+'">' + s.opts.map(function(o){
+        return '<button class="chip" type="button" data-f="'+s.id+'" data-v="'+o+'"'
+          + ' aria-pressed="false">'+esc(o)+'</button>';
+      }).join("") + '</div>';
+    }
+    return '<section class="sec">' + head + body + '</section>';
+  }).join("");
+  D.adv.innerHTML = hint + h
+    + '<div class="advfoot"><span class="fcount" id="fcount"></span>'
+    + '<button class="reset" id="freset" type="button">Clear all filters</button></div>';
+  D.fcount = el("fcount");
+}
+
+function toggleFilter(id, val, btn){
+  var f = F[id], cur = f.sel[val];
+  if (cur === undefined){ f.sel[val] = 1;  f.n++; }
+  else if (cur > 0)      { f.sel[val] = -1;       }
+  else                   { delete f.sel[val]; f.n--; }
+  var now = f.sel[val];
+  btn.classList.toggle("on", now === 1);
+  btn.classList.toggle("ex", now === -1);
+  btn.setAttribute("aria-pressed", now === undefined ? "false" : "true");
+  btn.title = now === 1 ? "Only " + val : now === -1 ? "Everything except " + val : "";
+  run();
+}
+function resetFilters(){
+  SPEC.forEach(function(s){
+    F[s.id] = s.range ? {min:"", max:"", unk:false} : {sel:{}, n:0, and:false};
+  });
+  buildPanel();
+  run();
+}
+function syncFilterUI(){
+  var n = countFilters();
+  D.advbtn.textContent = n ? "Filters (" + n + ")" : "Filters";
+  D.advbtn.classList.toggle("on", !!n);
+  if (D.fcount){
+    D.fcount.textContent = n
+      ? hits.length.toLocaleString() + " match" + (hits.length===1?"":"es")
+      : "";
+  }
+}
+
+/* ---------- result lists ---------- */
+var hits = [], toksNow = [], cur = -1;
+var DROP_MAX = 25, PAGE_MAX = 300;
+
+function row(ix, cls){
+  var c = CARDS[ix];
+  return '<div class="'+cls+'" role="option" data-i="'+ix+'">'
+    + '<span class="nm">'+mark(c.n, toksNow)+'</span>'
+    + '<span class="kd">'+esc(kindOf(c))+'</span></div>';
+}
+function closeList(){ D.list.className=""; D.list.innerHTML=""; cur=-1; }
+function setActive(on){
+  D.app.className = on ? "active" : "idle";
+  D.foot.classList.toggle("hide", on);
+}
+function run(){
+  var raw = D.q.value, i;
+  D.clr.style.display = raw ? "block" : "none";
+  if (!ready) return;
+  var filtered = anyFilter(), typed = !!raw.trim();
+  toksNow = normSp(raw).split(" ").filter(Boolean);
+
+  if (!typed && !filtered){
+    hits = []; cur = -1; syncFilterUI();
+    closeList(); D.results.innerHTML = "";
+    if (!D.stage.innerHTML) setActive(false);
+    return;
+  }
+  if (typed) hits = search(raw);
+  else { hits = []; for (i=0;i<CARDS.length;i++) hits.push(i); }  /* already A-Z */
+  if (filtered) hits = hits.filter(function(ix){ return passes(CARDS[ix]); });
+  cur = -1; syncFilterUI();
+  setActive(true);
+
+  if (filtered){            /* the list view is the right shape for a filtered set */
+    closeList();
+    renderResults();
+    return;
+  }
+  D.list.className = "on";
+  if (!hits.length){
+    D.list.innerHTML = '<div class="note">Nothing matches that.</div>';
+    return;
+  }
+  D.list.innerHTML = hits.slice(0, DROP_MAX).map(function(ix){ return row(ix,"opt"); }).join("")
+    + (hits.length > DROP_MAX
+        ? '<div class="more">'+hits.length.toLocaleString()+' matches \u00b7 press Enter for the full list</div>'
+        : "");
+}
+function move(d){
+  var opts = D.list.querySelectorAll(".opt");
+  if (!opts.length) return;
+  cur = (cur + d + opts.length) % opts.length;
+  for (var i=0;i<opts.length;i++) opts[i].className = "opt" + (i===cur?" sel":"");
+  opts[cur].scrollIntoView({block:"nearest"});
+}
+function renderResults(){
+  D.stage.innerHTML = "";
+  if (!hits.length){
+    D.results.innerHTML = '<div class="rescount">No card matches</div>';
+    return;
+  }
+  D.results.innerHTML =
+      '<div class="rescount">' + hits.length.toLocaleString() + ' match'
+    + (hits.length === 1 ? "" : "es")
+    + (hits.length > PAGE_MAX ? ' \u00b7 first ' + PAGE_MAX + ' shown' : "")
+    + '</div>'
+    + hits.slice(0, PAGE_MAX).map(function(ix){ return row(ix,"res"); }).join("");
+}
+function openResults(){
+  if (!hits.length) return;
+  closeList();
+  D.q.blur();
+  setActive(true);
+  renderResults();
+  window.scrollTo(0, 0);
+}
+function choose(ix){
+  closeList();
+  D.results.innerHTML = "";
+  D.q.value = CARDS[ix].n;
+  D.q.blur();
+  setActive(true);
+  show(CARDS[ix]);
+  window.scrollTo(0, 0);
+}
+
+/* ---------- card art ---------- */
+var FRAME = {
+  normal:  ["#BE9C55","#E3C98A","#8C6F32"],
+  effect:  ["#B9642E","#DE9558","#7C3E18"],
+  ritual:  ["#3F63AC","#7794D2","#24406F"],
+  fusion:  ["#7A4A96","#A87CC2","#472461"],
+  synchro: ["#DEDACE","#F7F4EC","#A9A392"],
+  xyz:     ["#23252B","#4A4E58","#0C0D11"],
+  link:    ["#2A4A78","#4E77AC","#152D4D"],
+  spell:   ["#1D8E7C","#4FBCA5","#0C5A4B"],
+  trap:    ["#9E2B66","#C55B90","#5F1537"]
+};
+function frameOf(f){
+  var base = f.replace("_pendulum","");
+  return FRAME[base] || FRAME.effect;
+}
+var DARKFRAME = {xyz:1, link:1, trap:1, fusion:1, ritual:1};
+
+var ATTRCOL = {
+  DARK:"#3E2062", LIGHT:"#8C7010", EARTH:"#5B4A34", WATER:"#1F5CA8",
+  FIRE:"#A22E1C", WIND:"#1F7A4E", DIVINE:"#A3721A",
+  SPELL:"#0A5244", TRAP:"#5E123A"
+};
+function attrBadge(kind){
+  return '<span class="attr" style="background:' + (ATTRCOL[kind]||"#555") + '"'
+    + ' role="img" aria-label="' + kind + '">' + kind + '</span>';
+}
+function starSvg(rank){
+  var fill = rank ? "#1b1b1b" : "#E8B923";
+  var edge = rank ? "#5b5b5b" : "#7a5c06";
+  return '<svg class="pip" viewBox="0 0 24 24" aria-hidden="true">'
+    + '<circle cx="12" cy="12" r="11" fill="'+fill+'" stroke="'+edge+'" stroke-width="1.4"/>'
+    + '<path d="M12 4.6l2.2 5.2 5.6.5-4.3 3.7 1.3 5.5L12 16.6 7.2 19.5l1.3-5.5-4.3-3.7 5.6-.5z" fill="'
+    + (rank ? "#d9d9d9" : "#fff8dc") + '"/></svg>';
+}
+var ARROWS = {
+  "Top":[50,0,0],"Bottom":[50,100,180],"Left":[0,50,270],"Right":[100,50,90],
+  "Top-Left":[0,0,315],"Top-Right":[100,0,45],"Bottom-Left":[0,100,225],"Bottom-Right":[100,100,135]
+};
+
+function badge(kind, val){
+  if (kind === "pts"){
+    return '<div class="badge pts" role="img" aria-label="Genesys '+val+' points">'+val+'</div>';
+  }
+  var body;
+  if (val === "Forbidden"){
+    body = '<svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">'
+      + '<circle cx="20" cy="20" r="13" fill="none" stroke="#fff" stroke-width="4.4"/>'
+      + '<path d="M11 29L29 11" stroke="#fff" stroke-width="4.4" stroke-linecap="round"/></svg>';
+  } else {
+    body = '<span class="n">' + (val === "Limited" ? "1" : "2") + '</span>';
+  }
+  return '<div class="badge ban" role="img" aria-label="'+val+'">' + body + '</div>';
+}
+
+function typeLine(c){
+  var parts;
+  if (c.tl){
+    parts = c.tl.slice();
+    if (c.f.indexOf("pendulum") > -1 && parts.indexOf("Pendulum") < 0) parts.splice(1,0,"Pendulum");
+  } else {
+    parts = [c.f === "trap" ? "Trap" : "Spell"];
+    if (c.r) parts.push(c.r);          /* Equip, Continuous, Counter, Field, ... */
+  }
+  return "[ " + parts.join(" / ") + " ]";
+}
+
+function linkRow(c){
+  var nm = encodeURIComponent(c.n), out = [];
+  /* ygoprodeck.com/card/<slug>-<n> redirects to /card/<n>, so the number is enough */
+  if (c.y) out.push(["YGOPRODeck", "https://ygoprodeck.com/card/" + c.y]);
+  out.push(["Yugipedia", "https://yugipedia.com/wiki/" + encodeURIComponent(c.n.replace(/ /g, "_"))]);
+  out.push(["TCGplayer",
+            "https://www.tcgplayer.com/search/yugioh/product?productLineName=yugioh&q=" + nm]);
+  return '<div class="links">' + out.map(function(l){
+    return '<a class="lnk" href="'+l[1]+'" target="_blank" rel="noopener noreferrer">'+l[0]+'</a>';
+  }).join("") + '</div>';
+}
+function show(c){
+  var f = frameOf(c.f);
+  var pend = c.f.indexOf("pendulum") > -1;
+  var isLink = c.f === "link";
+  var isXyz = c.f === "xyz" || c.f === "xyz_pendulum";
+  var isMon = !!c.tl;
+  var dark = DARKFRAME[c.f.replace("_pendulum","")] ? " dk" : "";
+
+  var attrKind = c.a ? c.a : (c.f === "spell" ? "SPELL" : c.f === "trap" ? "TRAP" : null);
+
+  /* level or rank pips */
+  var pips = "";
+  if (isMon && !isLink && c.l !== undefined){
+    var row = [];
+    for (var i=0;i<c.l;i++) row.push(starSvg(isXyz));
+    var lab   = '<span class="lvlab">' + (isXyz ? "Rank " : "Level ") + c.l + '</span>';
+    var stars = '<span class="pips">' + row.join("") + '</span>';
+    /* Level reads left with pips right; Rank is the mirror image */
+    pips = '<div class="lvrow">' + (isXyz ? stars + lab : lab + stars) + '</div>';
+  }
+
+  /* pendulum block */
+  var pblock = "";
+  if (pend && c.pd){
+    pblock = '<div class="pendwrap">'
+      + '<div class="scale l">'+(c.sc!=null?c.sc:"?")+'</div>'
+      + '<div class="scale r">'+(c.sc!=null?c.sc:"?")+'</div>'
+      + '<div class="pendbox"><div class="pendhd">Pendulum Effect</div>'
+      + esc(c.pd) + '</div></div>';
+  }
+
+  var body = pend && c.md ? c.md : c.d;
+  var flavor = (c.f === "normal" || c.f === "normal_pendulum") ? " flavor" : "";
+
+  /* stat line */
+  var stats = "";
+  if (isLink){
+    stats = '<div class="statline"><span>ATK/' + (c.k!=null?c.k:"?") + '</span>'
+          + '<span class="linkval">LINK-' + (c.lv||"?") + '</span></div>';
+  } else if (isMon){
+    stats = '<div class="statline"><span>ATK/' + (c.k!=null?c.k:"?") + '</span>'
+          + '<span>DEF/' + (c.e!=null?c.e:"?") + '</span></div>';
+  }
+
+  /* link arrows */
+  var arrows = "";
+  if (isLink){
+    var set = {}; (c.lm||[]).forEach(function(m){ set[m]=1; });
+    arrows = '<div class="arrows">' + Object.keys(ARROWS).map(function(k){
+      var a = ARROWS[k], on = set[k] ? " on" : "";
+      return '<div class="arw'+on+'" style="left:'+a[0]+'%;top:'+a[1]+'%;'
+        + 'transform:translate(-50%,-50%) rotate('+a[2]+'deg);'
+        + 'border-left:7px solid transparent;border-right:7px solid transparent;'
+        + 'border-bottom:11px solid ' + (set[k] ? "#FFD666" : "#ffffff") + ';"></div>';
+    }).join("") + '</div>';
+  }
+
+  var tl = typeLine(c);
+  var pts = (c.g != null) ? c.g : 0;
+
+  var html =
+    '<div class="cardbox">'
+    + (pts ? badge("pts", pts) : "")
+    + (c.b ? badge("ban", c.b) : "")
+    + '<div class="card'+dark+(pend?" pend":"")+'" style="background:'
+    +   'linear-gradient(170deg,'+f[1]+' 0%,'+f[0]+' 24%,'+f[0]+' 74%,'+f[2]+' 100%);">'
+    +   arrows
+    +   '<div class="namerow"><div class="cname">'+esc(c.n)+'</div>'
+    +     (attrKind ? attrBadge(attrKind) : "") + '</div>'
+    +   pips
+    +   pblock
+    +   '<div class="panel">'
+    +     '<div class="tline">'+esc(tl)+'</div>'
+    +     '<div class="desc'+flavor+'">'+esc(body)+'</div>'
+    +     stats
+    +   '</div>'
+    + '</div>'
+    + '<div class="meta">'
+    +   '<span>Genesys <b>'+pts+'</b></span>'
+    +   '<span>TCG list <b>'+(c.b || "Unlimited")+'</b></span>'
+    + '</div>'
+    + linkRow(c)
+    + '</div>';
+
+  D.stage.innerHTML = html;
+}
+
+/* ---------- wiring ---------- */
+["q","clr","list","stage","results","app","boot","foot","adv","advbtn"].forEach(function(k){
+  D[k] = el(k);
+});
+buildPanel();
+
+var t = null;
+D.q.addEventListener("input", function(){
+  clearTimeout(t); t = setTimeout(run, 90);
+});
+D.q.addEventListener("keydown", function(e){
+  if (e.key === "ArrowDown"){ e.preventDefault(); move(1); }
+  else if (e.key === "ArrowUp"){ e.preventDefault(); move(-1); }
+  else if (e.key === "Enter"){
+    e.preventDefault();
+    if (cur > -1){
+      var sel = D.list.querySelectorAll(".opt")[cur];
+      if (sel){ choose(+sel.dataset.i); return; }
+    }
+    clearTimeout(t); run();
+    openResults();
+  }
+  else if (e.key === "Escape"){ closeList(); D.results.innerHTML = ""; D.q.blur(); }
+});
+D.list.addEventListener("mousedown", function(e){
+  var o = e.target.closest(".opt");
+  if (o){ e.preventDefault(); choose(+o.dataset.i); }
+});
+D.results.addEventListener("click", function(e){
+  var o = e.target.closest(".res");
+  if (o) choose(+o.dataset.i);
+});
+D.clr.addEventListener("click", function(){
+  D.q.value = ""; D.stage.innerHTML = ""; closeList();
+  D.clr.style.display = "none"; D.q.focus();
+  run();            /* a filter may still be on, so let run() decide the view */
+});
+/* filter panel */
+D.advbtn.addEventListener("click", function(){
+  var open = D.adv.hasAttribute("hidden");
+  if (open) D.adv.removeAttribute("hidden"); else D.adv.setAttribute("hidden","");
+  D.advbtn.setAttribute("aria-expanded", open ? "true" : "false");
+});
+D.adv.addEventListener("click", function(e){
+  var b = e.target.closest("[data-f]");
+  if (b){ toggleFilter(b.dataset.f, b.dataset.v, b); return; }
+  var m = e.target.closest("[data-mode]");
+  if (m){
+    var f = F[m.dataset.mode];
+    f.and = !f.and;
+    m.textContent = f.and ? "ALL" : "ANY";
+    m.classList.toggle("and", f.and);
+    run(); return;
+  }
+  if (e.target.closest("#freset")) resetFilters();
+});
+D.adv.addEventListener("input", function(e){
+  var r = e.target.closest("[data-r]");
+  if (r){ F[r.dataset.r][r.dataset.k] = r.value.trim(); run(); return; }
+  var u = e.target.closest("[data-u]");
+  if (u){ F[u.dataset.u].unk = u.checked; run(); }
+});
+
+/* a tap on the black space around a card goes back to the list */
+document.addEventListener("click", function(e){
+  if (!e.target.isConnected) return;          /* the row we just removed */
+  if (!e.target.closest(".searchwrap")) closeList();
+  if (!D.stage.innerHTML) return;
+  if (e.target.closest(".cardbox") || e.target.closest(".searchwrap")
+      || e.target.closest("#adv") || e.target.closest(".advbtn")) return;
+  if (hits.length) openResults();
+  else { D.stage.innerHTML = ""; setActive(!!D.q.value); }
+});
+load();
+</script>
+</body>
+</html>
