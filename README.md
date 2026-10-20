@@ -1,6 +1,6 @@
 # YGOlookup
 
-A Yu-Gi-Oh! card lookup that is one single file and works with no internet.
+A Yu-Gi-Oh! card lookup that is one single file and works without internet. The full database is in the HTML file.
 
 Search any of 13,000 or more cards, read the full card, and see its Genesys point
 value and its TCG Forbidden & Limited status together in one place.
